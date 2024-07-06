@@ -85,13 +85,24 @@ loc_sf <- st_as_sf(coords, coords = c("longitude", "latitude"))
 track <- st_read("track.gpx", layer = "tracks")
 
 
-
-
 create_value_box <- function(location) {
   x <- get_weather(location)
   valueBox(value = x$temperature_formatted, subtitle = x$location_formatted, icon = icon(x$icon), color = x$color)
 }
 
+# get track log and current position
+ben_history <- st_read("https://share.garmin.com/Feed/Share/RC4JD?d1=2024-07-09T06:19z&d2=2024-07-22T23:59z")
+ben_current <- st_read("https://share.garmin.com/Feed/Share/RC4JD")
+
+ben_history <- st_cast(ben_history, to = "POINT")
+ben_current <- ben_current[1,]
+
+ben_current_icon <- makeAwesomeIcon(icon = "bicycle",
+                             library = "fa", markerColor = "green"
+                            )
+ben_history_icon <- makeAwesomeIcon(icon = "bicycle",
+                                    library = "fa", markerColor = "lightgray",
+)
 
 
 
@@ -108,7 +119,22 @@ ui <- dashboardPage(
     tabItems(
       tabItem(tabName = "current",
               fluidRow(p("Data shown for ", lubridate::round_date(lubridate::now(tzone = "Europe/Zurich"), unit = "minutes"), "(European Central Summer Time)")),
-             
+              fluidRow(
+                box(
+                  title = "Track log, current position, and weather stations",
+                  width = 12,
+                  leaflet(loc_sf) %>% 
+                    addProviderTiles(provider = "Esri.WorldTopoMap") %>% 
+                    addMarkers(popup = loc_sf$name) %>% 
+                    addPolylines(data = track) |> 
+                    addAwesomeMarkers(data = ben_history, 
+                                      popup = "Track log", 
+                                      icon = ben_history_icon) |> 
+                    addAwesomeMarkers(data = ben_current, 
+                                      popup = "Most recent position", 
+                                      icon = ben_current_icon) 
+                )
+              ),         
     fluidRow(
       valueBoxOutput("Welzheim"),
       valueBoxOutput("Singen"),
@@ -123,16 +149,6 @@ ui <- dashboardPage(
       valueBoxOutput("PassoSella"),
       valueBoxOutput("KranjskaGora"),
       valueBoxOutput("Nassfeldpass")
-    ),
-    fluidRow(
-      box(
-        title = "Map of weather stations",
-        width = 12,
-        leaflet(loc_sf) %>% 
-          addTiles() %>% 
-          addMarkers(popup = loc_sf$name) %>% 
-          addPolylines(data = track)
-    )
     )
   ),
 tabItem(tabName = "forecast",
@@ -198,21 +214,33 @@ server <- function(input, output) {
 # Run the app
 shinyApp(ui = ui, server = server)
 
-# ben <- st_read("https://share.garmin.com/Feed/Share/RC4JD")
 # 
-# leaflet(ben[2,]) %>%
-#   addTiles() %>%
-#   addPolylines()
-# # ben
 # # 
+# 
+# ben$geometry
+# 
+# ggplot(ben) +
+#   geom_sf()
+# st_geometry(ben)
+# st_as_sf(ben)
+# leaflet(points) %>%
+#   addTiles() %>%
+#   addMarkers()
+# 
+# 
+# leaflet(lines) |> 
+#   addPolylines()
+# https://inreach.garmin.com/feed/share/SAMPLE1?d1=2012-10-16T06:19z
+# D2	End date for the query -in UTC time	https://inreach.garmin.com/feed/share/SAMPLE2?d1=2012-10-16T06:19z&d2=2012-10-18T23:59z# # ben
+# # # 
 # library(xml2)
-# download.file("https://share.garmin.com/Feed/Share/RC4JD", destfile = "tracking.kml")
+# download.file("https://share.garmin.com/Feed/Share/RC4JD?d1=2012-10-16T06:19z", destfile = "tracking.kml")
 # tracking <- read_xml("tracking.kml")
 # # xml_find_all(tracking, "//Coordinates", xml_ns("d1"))
 # 
 # tracking <- read_xml("tracking.kml")
 # 
-# read_xml("tracking.kml")
+# xml_ns(read_xml("tracking.kml"))
 # 
 # read_kml <- function(file_path) {
 #   # Read the KML file
@@ -223,12 +251,12 @@ shinyApp(ui = ui, server = server)
 # 
 #   # Function to extract data from a single placemark
 #   extract_placemark_data <- function(placemark) {
-#     name <- xml_text(xml_find_first(placemark, ".//d1:name", ns = xml_ns(kml_doc)))
+#     time <- xml_text(xml_find_first(placemark, ".//d1:TimeStamp", ns = xml_ns(kml_doc)))
 #     coords <- xml_text(xml_find_first(placemark, ".//d1:coordinates", ns = xml_ns(kml_doc)))
 #     coords_split <- strsplit(coords, ",")[[1]]
 # 
 #     list(
-#       name = name,
+#       time = time,
 #       longitude = as.numeric(coords_split[1]),
 #       latitude = as.numeric(coords_split[2]),
 #       altitude = as.numeric(coords_split[3])
@@ -248,6 +276,15 @@ shinyApp(ui = ui, server = server)
 # kml_file_path <- "tracking.kml"
 # kml_data <- read_kml(kml_file_path)
 # 
-# xml_ns(tracking)
+# points <- st_as_sf(kml_data, coords = c("longitude", "latitude"))
+# 
+# lines <- sfheaders::sf_linestring(kml_data, linestring_id = "time")
+# 
+# ?xml_ns(tracking)
 # # View the first few rows of the resulting data frame
 # print(head(kml_data))
+# 
+# 
+# kml_doc <- read_xml("tracking.kml")
+# xml_find_all(kml_doc, "//d1:ExtendedData//d2:Velocity", ns = xml_ns(kml_doc))
+# st_read("../../Downloads/mygeodata/tracking-line.shp") |> View()
